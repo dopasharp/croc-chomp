@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>악어 이빨 게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green: #2f7a3a;
+      --green-btn: #5cbf47;
+      --green-btn-dark: #3f9a2f;
+      --ink: #2c4a3e;
+      --card: rgba(255, 255, 255, .92);
+      --red: #ff4d5e;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Jua', sans-serif;
+      background: radial-gradient(circle at 50% 35%, #e9fbff 0%, #bfe9f0 55%, #8fd3c7 100%);
+      color: var(--ink);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    canvas { display: block; touch-action: none; }
+    button { font-family: inherit; cursor: pointer; }
+
+    .title {
+      position: fixed;
+      top: 16px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(28px, 6vw, 44px);
+      color: var(--green);
+      text-shadow: 0 3px 0 #fff, 0 6px 14px rgba(0, 0, 0, .12);
+      pointer-events: none;
+    }
+    .hud {
+      position: fixed;
+      top: clamp(64px, 12vw, 78px);
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .pill {
+      background: var(--card);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: clamp(16px, 4vw, 20px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+    }
+    .hint {
+      position: fixed;
+      bottom: 18px;
+      left: 16px;
+      right: 16px;
+      text-align: center;
+      font-size: 16px;
+      opacity: .75;
+      pointer-events: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(30, 60, 50, .25);
+      transition: opacity .25s;
+    }
+    .hidden { opacity: 0; pointer-events: none; }
+    .card {
+      background: var(--card);
+      border-radius: 28px;
+      padding: 28px 32px;
+      width: min(340px, 100%);
+      box-sizing: border-box;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, .18);
+    }
+    .card h2 { margin: 0 0 6px; font-size: 30px; font-weight: normal; color: var(--green); }
+    .card p { margin: 0 0 20px; font-size: 17px; line-height: 1.5; opacity: .85; }
+    .btn {
+      display: block;
+      width: 100%;
+      border: none;
+      border-radius: 18px;
+      padding: 14px;
+      font-size: 22px;
+      color: #fff;
+      background: var(--green-btn);
+      box-shadow: 0 5px 0 var(--green-btn-dark);
+      margin-top: 10px;
+    }
+    .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--green-btn-dark); }
+
+    .chomp {
+      font-size: clamp(64px, 18vw, 96px);
+      color: var(--red);
+      line-height: 1;
+      margin-bottom: 8px;
+      text-shadow: 0 4px 0 #fff, 0 8px 18px rgba(255, 77, 94, .35);
+      animation: pop .45s cubic-bezier(.2, 1.6, .4, 1);
+    }
+    @keyframes pop { from { transform: scale(.3) rotate(-12deg); } to { transform: scale(1) rotate(0); } }
+
+    .flash {
+      position: fixed;
+      inset: 0;
+      background: var(--red);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .flash.on { animation: flash .8s ease-out; }
+    @keyframes flash {
+      0% { opacity: .45; background: var(--red); }
+      12% { opacity: 0; background: var(--red); }
+      22% { opacity: .35; background: #fff; }
+      38% { opacity: 0; background: #fff; }
+      100% { opacity: 0; background: #fff; }
+    }
+
+    #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    /* 터치 반응 말풍선 */
+    .pop {
+      position: fixed;
+      font-size: 26px;
+      color: #fff;
+      -webkit-text-stroke: 4px var(--green);
+      paint-order: stroke fill;
+      white-space: nowrap;
+      pointer-events: none;
+      animation: floatUp .9s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0% { opacity: 0; transform: translate(-50%, -60%) scale(.5); }
+      20% { opacity: 1; transform: translate(-50%, -100%) scale(1.1); }
+      100% { opacity: 0; transform: translate(-50%, -230%) scale(1); }
+    }
+
+    /* 만화 효과음 "와작!!" */
+    .boom {
+      position: fixed;
+      left: 50%;
+      top: 25%;
+      width: min(48vw, 230px);
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .boom::before, .boom::after {
+      content: '';
+      position: absolute;
+      clip-path: var(--burst);
+    }
+    .boom::before { inset: 0; background: #ffd23f; }
+    .boom::after { inset: 13%; background: #fff; transform: rotate(8deg); }
+    .boom span {
+      position: relative;
+      z-index: 1;
+      font-size: clamp(34px, 10vw, 56px);
+      color: var(--red);
+      -webkit-text-stroke: 4px #fff;
+      paint-order: stroke fill;
+      text-shadow: 0 4px 0 #b8243a;
+      transform: rotate(-8deg);
+    }
+    .boom.on { animation: boom 1.6s ease-out forwards; }
+    @keyframes boom {
+      0% { transform: translate(-50%, -50%) scale(0) rotate(-25deg); opacity: 1; }
+      12% { transform: translate(-50%, -50%) scale(1.2) rotate(6deg); opacity: 1; }
+      22% { transform: translate(-50%, -50%) scale(.95) rotate(-3deg); opacity: 1; }
+      30% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
+      75% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1.35) rotate(4deg); opacity: 0; }
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="title">🐊 악어 이빨 게임</div>
+  <div class="hud" id="hud">
+    <div class="pill" id="left"></div>
+  </div>
+  <div class="hint">이빨을 하나씩 눌러보세요. 운 나쁘면… 콱!</div>
+  <div class="flash" id="flash"></div>
+  <div class="boom" id="boom"><span>와작!!</span></div>
+  <canvas id="confetti"></canvas>
+
+  <div class="overlay hidden" id="result">
+    <div class="card">
+      <div class="chomp">콱!!</div>
+      <p id="loser"></p>
+      <button class="btn" id="again">다시 하기</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+    // ---------- 기본 세팅 ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    document.body.prepend(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(3.6, 4.4, 8.2);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.8, 0);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.minDistance = 5;
+    controls.maxDistance = 16;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.8;
+    controls.addEventListener('start', () => (controls.autoRotate = false));
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xa8d8a0, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.set(4, 9, 6);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -7;
+    sun.shadow.camera.right = sun.shadow.camera.top = 7;
+    sun.shadow.radius = 6;
+    scene.add(sun);
+    const rim = new THREE.DirectionalLight(0xfff1d6, 0.8);
+    rim.position.set(-6, 4, -5);
+    scene.add(rim);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(9, 64),
+      new THREE.ShadowMaterial({ opacity: 0.18 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ---------- 재질 / 헬퍼 ----------
+    const mat = (color, roughness = 0.55) =>
+      new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+    const M = {
+      body: mat(0x6acb4f),
+      bump: mat(0x4fb03c),
+      belly: mat(0xe6f6b4),
+      mouth: mat(0xff8fa3, 0.7),
+      tongue: mat(0xff6384, 0.45),
+      tooth: mat(0xfffdf5, 0.3),
+      eyeWhite: mat(0xffffff, 0.2),
+      pupil: mat(0x1f1d2b, 0.15),
+      blush: mat(0xff9db2, 0.85),
+      nostril: mat(0x2e6b25),
+      nail: mat(0xf4f0d8, 0.4),
+    };
+    const sphere = new THREE.SphereGeometry(1, 32, 24);
+
+    function add(geo, material, parent, pos = [0, 0, 0], scale = [1, 1, 1], rot = [0, 0, 0]) {
+      const m = new THREE.Mesh(geo, material);
+      m.position.set(...pos);
+      m.scale.set(...scale);
+      m.rotation.set(...rot);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+    function group(parent, pos = [0, 0, 0]) {
+      const g = new THREE.Group();
+      g.position.set(...pos);
+      parent.add(g);
+      return g;
+    }
+
+    // ---------- 악어 ----------
+    const croc = group(scene);
+
+    // 몸통
+    const BODY = { y: 0.8, z: -1.0, sx: 1.25, sy: 0.75, sz: 1.7 };
+    const body = add(sphere, M.body, croc, [0, BODY.y, BODY.z], [BODY.sx, BODY.sy, BODY.sz]);
+    add(sphere, M.belly, croc, [0, 0.62, -0.95], [1.12, 0.6, 1.55]);
+    add(sphere, M.body, croc, [0, 0.7, 0.45], [0.95, 0.6, 0.75]); // 목
+
+    // 등 돌기
+    for (const x of [-0.32, 0.32]) {
+      for (let z = -2.3; z <= 0.3; z += 0.42) {
+        const t = 1 - (x / BODY.sx) ** 2 - ((z - BODY.z) / BODY.sz) ** 2;
+        if (t <= 0) continue;
+        const y = BODY.y + BODY.sy * Math.sqrt(t);
+        add(sphere, M.bump, croc, [x, y - 0.02, z], [0.13, 0.09, 0.16]);
+      }
+    }
+
+    // 다리
+    for (const [sx, z] of [[1, -0.05], [-1, -0.05], [1, -1.9], [-1, -1.9]]) {
+      const leg = group(croc, [sx * 1.0, 0.45, z]);
+      leg.rotation.z = sx * 0.3;
+      add(new THREE.CapsuleGeometry(0.22, 0.3, 8, 16), M.body, leg, [0, -0.05, 0]);
+      const foot = group(leg, [sx * 0.08, -0.33, 0.1]);
+      foot.rotation.z = -sx * 0.3;
+      add(sphere, M.body, foot, [0, 0, 0], [0.32, 0.14, 0.38]);
+      for (const tx of [-0.16, 0, 0.16]) add(sphere, M.nail, foot, [tx, -0.02, 0.33], [0.07, 0.06, 0.07]);
+    }
+
+    // 꼬리 (관절 체인)
+    const tailJoints = [];
+    let tailParent = group(croc, [0, 0.55, -2.55]);
+    for (let i = 0; i < 9; i++) {
+      const r = 0.58 * (1 - i / 10.5);
+      const j = group(tailParent, [0, i === 0 ? 0 : -0.02, i === 0 ? 0 : -0.42]);
+      add(sphere, M.body, j, [0, 0, 0], [r, r * 0.75, r * 1.25]);
+      add(sphere, M.bump, j, [0, r * 0.72, 0], [r * 0.28, r * 0.2, r * 0.32]);
+      tailJoints.push(j);
+      tailParent = j;
+    }
+
+    // 머리
+    const head = group(croc, [0, 0.45, 0.8]);
+
+    // 아래턱
+    const jawLower = group(head);
+    add(new RoundedBoxGeometry(1.6, 0.4, 2.3, 4, 0.18), M.body, jawLower, [0, -0.2, 1.0]);
+    add(new RoundedBoxGeometry(1.32, 0.06, 2.0, 2, 0.03), M.mouth, jawLower, [0, 0.0, 1.0]);
+    add(sphere, M.tongue, jawLower, [0, 0.04, 0.75], [0.42, 0.08, 0.65]);
+
+    // 이빨
+    const teeth = [];
+    const toothGeo = new RoundedBoxGeometry(0.2, 0.24, 0.2, 3, 0.07);
+    const toothSpots = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) toothSpots.push([sx * 0.62, 0.35 + i * 0.3]);
+    for (const x of [-0.4, -0.135, 0.135, 0.4]) toothSpots.push([x, 2.0]);
+    for (const [x, z] of toothSpots) {
+      const t = add(toothGeo, M.tooth.clone(), jawLower, [x, 0.11, z]);
+      t.userData = { baseY: 0.11, pressed: false };
+      teeth.push(t);
+    }
+
+    // 윗턱
+    const jawUpper = group(head, [0, 0, -0.1]);
+    const OPEN = -0.6;
+    const CLOSED = -0.18;
+    jawUpper.rotation.x = OPEN;
+    add(new RoundedBoxGeometry(1.7, 0.5, 2.4, 4, 0.22), M.body, jawUpper, [0, 0.25, 1.1]);
+    add(new RoundedBoxGeometry(1.36, 0.05, 2.05, 2, 0.02), M.mouth, jawUpper, [0, -0.01, 1.05]);
+    // 윗니: 아랫니 사이사이에 맞물리도록 엇갈려 배치 (장식용, 누를 수 없음)
+    const upperToothGeo = new RoundedBoxGeometry(0.18, 0.22, 0.18, 3, 0.06);
+    for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) add(upperToothGeo, M.tooth, jawUpper, [sx * 0.64, -0.1, 0.6 + i * 0.3]);
+    for (const x of [-0.27, 0, 0.27]) add(upperToothGeo, M.tooth, jawUpper, [x, -0.1, 2.0]);
+    // 코
+    const noseParts = [add(sphere, M.body, jawUpper, [0, 0.47, 2.0], [0.62, 0.22, 0.4])];
+    for (const sx of [-1, 1]) noseParts.push(add(sphere, M.nostril, jawUpper, [sx * 0.17, 0.67, 2.05], [0.07, 0.04, 0.06]));
+    // 볼터치
+    for (const sx of [-1, 1]) add(sphere, M.blush, jawUpper, [sx * 0.86, 0.28, 0.55], [0.04, 0.13, 0.22]);
+
+    // 눈
+    const eyes = [];
+    for (const sx of [-1, 1]) {
+      add(sphere, M.body, jawUpper, [sx * 0.46, 0.62, 0.28], [0.44, 0.4, 0.44]); // 눈두덩
+      const eye = group(jawUpper, [sx * 0.46, 0.88, 0.4]);
+      eye.rotation.x = -OPEN - 0.15; // 윗턱 기울기만큼 되돌려 정면을 보게
+      add(sphere, M.eyeWhite, eye, [0, 0, 0], [0.37, 0.37, 0.37]);
+      add(sphere, M.pupil, eye, [-sx * 0.04, 0.02, 0.29], [0.2, 0.23, 0.11]);
+      add(sphere, M.eyeWhite, eye, [-sx * 0.04 + 0.07, 0.12, 0.39], [0.065, 0.065, 0.03]);
+      eyes.push(eye);
+    }
+
+    // ---------- 사운드 ----------
+    let actx;
+    const audio = () => (actx ??= new (window.AudioContext || window.webkitAudioContext)());
+
+    function tone(freq, dur, type = 'sine', vol = 0.2, slideTo) {
+      const a = audio();
+      const o = a.createOscillator();
+      const g = a.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, a.currentTime);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+      g.gain.setValueAtTime(vol, a.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+      o.connect(g).connect(a.destination);
+      o.start();
+      o.stop(a.currentTime + dur);
+    }
+    function noise(dur, vol) {
+      const a = audio();
+      const buf = a.createBuffer(1, a.sampleRate * dur, a.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 2;
+      const src = a.createBufferSource();
+      const filter = a.createBiquadFilter();
+      const g = a.createGain();
+      src.buffer = buf;
+      filter.type = 'lowpass';
+      filter.frequency.value = 1400;
+      g.gain.value = vol;
+      src.connect(filter).connect(g).connect(a.destination);
+      src.start();
+    }
+    const sfx = {
+      press: () => tone(1100, 0.06, 'triangle', 0.12),
+      safe: () => tone(520, 0.14, 'sine', 0.16, 820),
+      chomp: () => {
+        noise(0.4, 0.9);
+        tone(170, 0.45, 'square', 0.2, 45);
+        tone(90, 0.6, 'sine', 0.4, 35);
+        tone(1400, 0.25, 'sawtooth', 0.06, 300);
+      },
+      crunch: () => {
+        noise(0.09, 0.5);
+        tone(240, 0.08, 'square', 0.1, 110);
+      },
+    };
+
+    // ---------- 콱 이펙트 ----------
+    const fx = [];
+    const FX_COLORS = [0xffd23f, 0xff5c8a, 0x5ce1ff, 0xffffff, 0xff8a3d, 0xa66bff];
+    const fxGeos = [new THREE.OctahedronGeometry(0.13), new THREE.IcosahedronGeometry(0.1)];
+    const mouthPos = new THREE.Vector3();
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.85, 1, 64),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.visible = false;
+    scene.add(ring);
+    let ringAge = 0;
+
+    function burst() {
+      head.localToWorld(mouthPos.set(0, 0.3, 2.1));
+      // 파편: 빠르게 바깥으로 튀어 나가서 악어를 오래 가리지 않게
+      for (let i = 0; i < 24; i++) {
+        const chip = i < 6; // 앞쪽 몇 개는 튀어나가는 이빨 조각
+        const m = new THREE.Mesh(
+          chip ? toothGeo : fxGeos[i % 2],
+          chip ? M.tooth : new THREE.MeshBasicMaterial({ color: FX_COLORS[i % FX_COLORS.length] })
+        );
+        const a = Math.random() * Math.PI * 2;
+        const speed = 5 + Math.random() * 4;
+        m.position.copy(mouthPos);
+        m.castShadow = true;
+        m.userData = {
+          v: new THREE.Vector3(Math.cos(a) * speed, 3 + Math.random() * 4, Math.sin(a) * speed + 1),
+          spin: new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12),
+          size: chip ? 0.9 : 0.6 + Math.random() * 0.8,
+          life: 0.9 + Math.random() * 0.5,
+          age: 0,
+        };
+        scene.add(m);
+        fx.push(m);
+      }
+      // 펑! 하고 금방 사라지는 연기 구름
+      for (let i = 0; i < 9; i++) {
+        const m = new THREE.Mesh(
+          sphere,
+          new THREE.MeshBasicMaterial({ color: i % 3 ? 0xffffff : 0xffe066, transparent: true, depthWrite: false })
+        );
+        m.position.copy(mouthPos).add(new THREE.Vector3((Math.random() - 0.5) * 1.6, Math.random() * 0.6, (Math.random() - 0.5) * 1.6));
+        m.userData = { puff: true, size: 0.3 + Math.random() * 0.3, life: 0.3 + Math.random() * 0.2, age: 0 };
+        scene.add(m);
+        fx.push(m);
+      }
+      ring.position.set(mouthPos.x, 0.02, mouthPos.z);
+      ring.visible = true;
+      ringAge = 0;
+    }
+
+    function updateFx(dt) {
+      for (let i = fx.length - 1; i >= 0; i--) {
+        const m = fx[i];
+        const d = m.userData;
+        d.age += dt;
+        if (d.puff) {
+          const p = d.age / d.life;
+          m.scale.setScalar(d.size * (0.4 + p * 1.4));
+          m.material.opacity = 0.9 * (1 - p);
+          m.position.y += dt;
+        } else {
+          d.v.y -= 14 * dt;
+          m.position.addScaledVector(d.v, dt);
+          if (m.position.y < 0.08) {
+            m.position.y = 0.08;
+            d.v.multiply(new THREE.Vector3(0.7, -0.45, 0.7));
+          }
+          m.rotation.x += d.spin.x * dt;
+          m.rotation.y += d.spin.y * dt;
+          m.rotation.z += d.spin.z * dt;
+          m.scale.setScalar(d.size * Math.min(1, (1 - d.age / d.life) * 3));
+        }
+        if (d.age >= d.life) {
+          scene.remove(m);
+          if (m.material !== M.tooth) m.material.dispose();
+          fx.splice(i, 1);
+        }
+      }
+      if (ring.visible) {
+        ringAge += dt;
+        const p = ringAge / 0.7;
+        ring.scale.setScalar(0.4 + p * 7);
+        ring.material.opacity = 0.85 * (1 - p);
+        ring.visible = p < 1;
+      }
+    }
+
+    // "와작!!" 뒤 별모양 배경
+    const boomEl = document.getElementById('boom');
+    const burstPts = Array.from({ length: 28 }, (_, i) => {
+      const a = (i / 28) * Math.PI * 2;
+      const r = i % 2 ? 34 : 50;
+      return `${50 + Math.cos(a) * r}% ${50 + Math.sin(a) * r}%`;
+    });
+    boomEl.style.setProperty('--burst', `polygon(${burstPts.join(',')})`);
+
+    // 화면 양쪽 아래에서 빵빠레처럼 쏘아 올리는 컨페티 (2D 오버레이)
+    const confettiCanvas = document.getElementById('confetti');
+    const cctx = confettiCanvas.getContext('2d');
+    const CONFETTI_COLORS = ['#ffd23f', '#ff5c8a', '#5ce1ff', '#7bd66b', '#ff8a3d', '#a66bff'];
+    const confetti = [];
+    let confettiDrawn = false;
+
+    function sizeConfetti() {
+      const dpr = Math.min(devicePixelRatio, 2);
+      confettiCanvas.width = innerWidth * dpr;
+      confettiCanvas.height = innerHeight * dpr;
+      cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    sizeConfetti();
+
+    function popConfetti() {
+      const H = innerHeight;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 80; i++) {
+          const ang = -Math.PI / 2 - side * (0.2 + Math.random() * 0.35);
+          const speed = H * (1.8 + Math.random() * 0.6);
+          confetti.push({
+            x: side < 0 ? -10 : innerWidth + 10,
+            y: H + 10,
+            vx: Math.cos(ang) * speed,
+            vy: Math.sin(ang) * speed,
+            rot: Math.random() * 6,
+            vr: (Math.random() - 0.5) * 12,
+            w: 6 + Math.random() * 5,
+            h: 10 + Math.random() * 8,
+            color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+            phase: Math.random() * 6,
+            age: 0,
+          });
+        }
+      }
+    }
+
+    function updateConfetti(dt) {
+      if (!confetti.length && !confettiDrawn) return;
+      cctx.clearRect(0, 0, innerWidth, innerHeight);
+      const gravity = innerHeight * 2.2;
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i];
+        c.age += dt;
+        c.vy = Math.min(c.vy + gravity * dt, innerHeight * 0.3); // 떨어질 땐 팔랑팔랑 천천히
+        c.vx *= 1 - 1.8 * dt;
+        c.x += (c.vx + Math.sin(c.age * 5 + c.phase) * 40) * dt;
+        c.y += c.vy * dt;
+        c.rot += c.vr * dt;
+        if (c.y > innerHeight + 30 || c.age > 6) {
+          confetti.splice(i, 1);
+          continue;
+        }
+        cctx.save();
+        cctx.translate(c.x, c.y);
+        cctx.rotate(c.rot);
+        cctx.scale(1, Math.cos(c.age * 9 + c.phase));
+        cctx.fillStyle = c.color;
+        cctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+        cctx.restore();
+      }
+      confettiDrawn = confetti.length > 0;
+    }
+
+    // 문 다음 냠냠 씹기
+    const CHEW = { start: 0.35, speed: 11, count: 4 };
+    CHEW.end = CHEW.start + (CHEW.count * Math.PI) / CHEW.speed;
+
+    // ---------- 게임 ----------
+    const $ = (id) => document.getElementById(id);
+    const ui = { result: $('result'), hud: $('hud'), flash: $('flash'), left: $('left'), loser: $('loser') };
+
+    // state: playing | waiting(누르고 두근두근) | bitten
+    const game = { state: 'playing', trap: null, snapAt: -1 };
+
+    const show = (el, on) => el.classList.toggle('hidden', !on);
+    const pressedCount = () => teeth.filter((t) => t.userData.pressed).length;
+
+    function renderHud() {
+      ui.left.textContent = `남은 이빨 ${teeth.length - pressedCount()}개`;
+    }
+
+    function newRound() {
+      teeth.forEach((t) => (t.userData.pressed = false));
+      game.trap = teeth[Math.floor(Math.random() * teeth.length)];
+      game.state = 'playing';
+      show(ui.result, false);
+      show(ui.hud, true);
+      renderHud();
+    }
+
+    function pressTooth(tooth) {
+      tooth.userData.pressed = true;
+      tooth.material.emissive.setHex(0x000000);
+      sfx.press();
+      game.state = 'waiting';
+      renderHud();
+
+      setTimeout(() => {
+        if (tooth === game.trap) return bite();
+        sfx.safe();
+        game.state = 'playing';
+        renderHud();
+      }, 150);
+    }
+
+    function bite() {
+      game.state = 'bitten';
+      game.snapAt = clock.getElapsedTime();
+      sfx.chomp();
+      for (let k = 1; k <= CHEW.count; k++) setTimeout(sfx.crunch, (CHEW.start + (k * Math.PI) / CHEW.speed) * 1000);
+      navigator.vibrate?.([120, 40, 200, 80, 60, 80, 60, 80, 60]);
+      burst();
+      popConfetti();
+      for (const el of [ui.flash, boomEl]) {
+        el.classList.remove('on');
+        void el.offsetWidth;
+        el.classList.add('on');
+      }
+      ui.loser.textContent = `${pressedCount()}번째 이빨에서 물렸어요 😱`;
+      setTimeout(() => {
+        show(ui.hud, false);
+        show(ui.result, true);
+      }, 2600);
+    }
+
+    $('again').onclick = newRound;
+    newRound();
+
+    // ---------- 터치 반응 (눈, 몸, 꼬리, 코, 머리) ----------
+    // 몸 전체를 'body'로 깔고 꼬리/머리/코/눈은 덮어쓰기
+    const tag = (obj, part) => obj.traverse((o) => o.isMesh && (o.userData.part = part));
+    tag(croc, 'body');
+    tag(tailJoints[0], 'tail');
+    tag(head, 'head');
+    noseParts.forEach((m) => tag(m, 'nose'));
+    eyes.forEach((e) => tag(e, 'eye'));
+
+    const pokedAt = { eye: -9, body: -9, tail: -9, nose: -9, head: -9 };
+    const REACTIONS = {
+      eye: { text: '앗!', sound: () => tone(900, 0.12, 'sine', 0.15, 1600) },
+      body: {
+        text: '히히',
+        sound: () => [0, 90, 180].forEach((ms, i) =>
+          setTimeout(() => tone(650 + i * 120, 0.08, 'triangle', 0.1, 900 + i * 120), ms)),
+      },
+      tail: { text: '살랑~', sound: () => noise(0.18, 0.25) },
+      nose: { text: '킁!', sound: () => { noise(0.12, 0.3); tone(380, 0.18, 'triangle', 0.14, 180); } },
+      head: { text: '아~', sound: () => tone(320, 0.2, 'sine', 0.15, 480) },
+    };
+
+    function poke(part, x, y) {
+      pokedAt[part] = clock.getElapsedTime();
+      REACTIONS[part].sound();
+      const el = document.createElement('div');
+      el.className = 'pop';
+      el.textContent = REACTIONS[part].text;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      document.body.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+
+    // ---------- 입력 ----------
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let downAt = null;
+    let hovered = null;
+
+    // 누를 수 있는 이빨이면 { tooth }, 다른 부위면 { part }
+    function pick(e) {
+      pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(croc, true)[0];
+      if (!hit || game.state === 'bitten') return null;
+      const obj = hit.object;
+      if (teeth.includes(obj)) return game.state === 'playing' && !obj.userData.pressed ? { tooth: obj } : null;
+      return { part: obj.userData.part };
+    }
+    function setHovered(sel) {
+      const tooth = sel?.tooth ?? null;
+      if (hovered && hovered !== tooth) hovered.material.emissive.setHex(0x000000);
+      hovered = tooth;
+      if (hovered) hovered.material.emissive.setHex(0x553300);
+      renderer.domElement.style.cursor = sel ? 'pointer' : 'grab';
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => (downAt = [e.clientX, e.clientY]));
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!downAt) return;
+      const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+      downAt = null;
+      if (moved > 6) return;
+      const sel = pick(e);
+      setHovered(null);
+      if (sel?.tooth) pressTooth(sel.tooth);
+      else if (sel?.part) poke(sel.part, e.clientX, e.clientY);
+    });
+    renderer.domElement.addEventListener('pointermove', (e) => setHovered(pick(e)));
+
+    // ---------- 애니메이션 ----------
+    const clock = new THREE.Clock();
+    const camShake = new THREE.Vector3();
+    let nextBlink = 2;
+    let lastT = 0;
+
+    function animate() {
+      const t = clock.getElapsedTime();
+      const dt = Math.min(0.05, t - lastT);
+      lastT = t;
+      const bitten = game.state === 'bitten';
+
+      body.scale.y = BODY.sy * (1 + Math.sin(t * 2) * 0.02);
+
+      // 몸 터치: 말랑하게 출렁
+      const sinceBody = t - pokedAt.body;
+      const jiggle = sinceBody < 0.6 ? Math.sin(sinceBody * 32) * 0.07 * (1 - sinceBody / 0.6) : 0;
+      croc.scale.set(1 - jiggle * 0.5, 1 + jiggle, 1 - jiggle * 0.5);
+
+      // 꼬리 터치: 신나게 살랑살랑
+      const sinceTail = t - pokedAt.tail;
+      const tailBoost = sinceTail < 1.2 ? 0.45 * (1 - sinceTail / 1.2) : 0;
+      tailJoints.forEach((j, i) => {
+        const speed = bitten ? 6 : tailBoost ? 9 : 1.8;
+        j.rotation.y = Math.sin(t * speed - i * 0.5) * ((bitten ? 0.2 : 0.11) + tailBoost);
+      });
+
+      // 윗턱: 물 땐 0.06초 만에 콱 → 냠냠 씹기, 평소엔 천천히 벌어짐
+      const sinceSnap = t - game.snapAt;
+      if (bitten) {
+        const p = Math.min(1, sinceSnap / 0.06);
+        let angle = OPEN + (CLOSED - OPEN) * p * p;
+        if (sinceSnap > CHEW.start && sinceSnap < CHEW.end) {
+          angle = CLOSED - Math.abs(Math.sin((sinceSnap - CHEW.start) * CHEW.speed)) * 0.16;
+        }
+        jawUpper.rotation.x = angle;
+      } else {
+        // 머리 터치: "아~" 하고 입을 더 크게 벌림
+        const yawn = t - pokedAt.head < 0.5;
+        const jawTarget = OPEN + Math.sin(t * 1.4) * 0.025 - (yawn ? 0.25 : 0);
+        jawUpper.rotation.x += (jawTarget - jawUpper.rotation.x) * (yawn ? 0.2 : 0.08);
+      }
+
+      // 씹는 동안 / 코 터치했을 때 고개 도리도리
+      const sinceNose = t - pokedAt.nose;
+      if (bitten && sinceSnap < CHEW.end) {
+        head.rotation.y = Math.sin(sinceSnap * 18) * 0.1 * (1 - sinceSnap / CHEW.end);
+      } else if (sinceNose < 0.5) {
+        head.rotation.y = Math.sin(sinceNose * 30) * 0.12 * (1 - sinceNose / 0.5);
+      } else {
+        head.rotation.y = 0;
+      }
+
+      // 누르고 결과 기다리는 동안 부들부들, 물면 펄쩍 뛰면서 흔들림
+      if (game.state === 'waiting') {
+        croc.position.set(Math.sin(t * 70) * 0.02, 0, 0);
+      } else if (bitten && sinceSnap < 0.9) {
+        const k = 0.25 * (1 - sinceSnap / 0.9);
+        const jump = sinceSnap < 0.5 ? Math.sin((sinceSnap / 0.5) * Math.PI) * 0.5 : 0;
+        croc.position.set((Math.random() - 0.5) * k, jump + (Math.random() - 0.5) * k, 0);
+      } else {
+        croc.position.set(0, 0, 0);
+      }
+
+      // 화면 자체도 쿵쿵 흔들림
+      camShake.set(0, 0, 0);
+      if (bitten && sinceSnap < 0.9) {
+        const k = 0.35 * (1 - sinceSnap / 0.9) ** 2;
+        camShake.set((Math.random() - 0.5) * k, (Math.random() - 0.5) * k, (Math.random() - 0.5) * k);
+      }
+
+      updateFx(dt);
+      updateConfetti(dt);
+
+      // 눈: 물었을 땐 실눈, 찔리면 질끈, 평소엔 가끔 깜빡
+      if (bitten) {
+        eyes.forEach((e) => (e.scale.y += (0.35 - e.scale.y) * 0.3));
+      } else if (t - pokedAt.eye < 0.45) {
+        eyes.forEach((e) => (e.scale.y += (0.1 - e.scale.y) * 0.5));
+      } else if (t > nextBlink) {
+        const p = (t - nextBlink) / 0.18;
+        const s = p < 1 ? Math.abs(Math.cos(p * Math.PI)) : 1;
+        eyes.forEach((e) => (e.scale.y = Math.max(0.08, s)));
+        if (p >= 1) nextBlink = t + 2 + Math.random() * 3;
+      } else {
+        eyes.forEach((e) => (e.scale.y += (1 - e.scale.y) * 0.3));
+      }
+
+      // 눌린 이빨은 쏙 들어감
+      for (const tooth of teeth) {
+        const target = tooth.userData.baseY - (tooth.userData.pressed ? 0.17 : 0);
+        tooth.position.y += (target - tooth.position.y) * 0.25;
+      }
+
+      controls.update();
+      camera.position.add(camShake);
+      renderer.render(scene, camera);
+      camera.position.sub(camShake);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // 세로 화면(폰)에선 악어가 잘리지 않게 카메라를 뒤로 뺌
+    function fitCamera() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      const dist = 10 / Math.min(1, camera.aspect) ** 0.85;
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      camera.position.copy(controls.target).addScaledVector(dir, dist);
+      controls.maxDistance = Math.max(16, dist * 1.4);
+      sizeConfetti();
+    }
+    fitCamera();
+    addEventListener('resize', fitCamera);
+  </script>
+</body>
+</html>
