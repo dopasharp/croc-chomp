@@ -124,6 +124,7 @@
     .intro h1 { margin: 8px 0 0; font: 800 var(--text-display)/var(--leading-tight) var(--font-body); letter-spacing: -.03em; }
     .intro .lead { margin: 12px 0 18px; font-size: var(--text-body); line-height: var(--leading-body); color: var(--color-text-muted); }
     .intro .lead b { color: var(--color-text); }
+    .sound-note { margin: -8px 0 16px; font-size: var(--text-small); color: var(--color-text-muted); }
     .steps { list-style: none; counter-reset: step; margin: 0 0 20px; padding: 0; display: grid; gap: 8px; }
     .steps li { counter-increment: step; display: grid; grid-template-columns: 24px 1fr; gap: 10px; font-size: 15px; line-height: 1.5; color: #d7e4dc; }
     .steps li::before { content: counter(step); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--color-surface-raised); color: var(--swamp); font: 800 12px/1 var(--font-body); }
@@ -239,6 +240,7 @@
         <li>꽝 이빨을 누르면 악어가 콱! 물어요.</li>
         <li>친구와 번갈아 누르고, 물린 사람이 벌칙!</li>
       </ol>
+      <p class="sound-note">🔊 플레이 중 소리가 날 수 있어요</p>
       <button class="dopa-button dopa-button--block" id="start">게임 시작하기</button>
       <footer data-dopa="footer"></footer>
     </section>
@@ -424,7 +426,15 @@
 
     // ---------- 사운드 ----------
     let actx;
-    const audio = () => (actx ??= new (window.AudioContext || window.webkitAudioContext)());
+    const audio = () => {
+      if (!actx) {
+        // iOS: 무음 모드에서도 효과음이 나도록 (iOS 17+ Safari)
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (actx.state !== 'running') actx.resume();
+      return actx;
+    };
 
     function tone(freq, dur, type = 'sine', vol = 0.2, slideTo) {
       const a = audio();
